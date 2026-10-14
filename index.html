@@ -1,0 +1,106 @@
+<title>Pop Rush</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: full-screen play field, HUD on top, overlay for start/end */
+:root{--bg:#10131f;--fg:#f4f6ff;--muted:#8f97b8;--accent:#ffd23f;--hot:#ff4f79;--cool:#3fe0c5;--font:'Bungee','Impact',sans-serif;--body:'Nunito',system-ui,sans-serif}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);overflow:hidden;touch-action:manipulation;user-select:none;-webkit-user-select:none;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px;display:flex;flex-direction:column;gap:12px}
+.hud{display:flex;justify-content:space-between;align-items:flex-end;font-family:var(--font)}
+.hud small{display:block;font:700 11px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.hud b{font-size:28px;font-weight:400;font-variant-numeric:tabular-nums}
+#time{color:var(--cool)}#combo{color:var(--hot)}
+.bar{height:6px;border-radius:3px;background:#1d2236;overflow:hidden}
+.bar i{display:block;height:100%;width:100%;background:var(--cool);transform-origin:left;transition:transform .2s linear}
+#field{position:relative;flex:1;border-radius:20px;background:radial-gradient(circle at 50% 30%,#1a2040,#0c0f1a);overflow:hidden}
+.b{position:absolute;border-radius:50%;border:0;padding:0;cursor:pointer;animation:in .15s ease-out;box-shadow:inset -6px -8px 14px rgba(0,0,0,.25),0 0 18px currentColor}
+.b::after{content:"";position:absolute;left:22%;top:16%;width:26%;height:18%;border-radius:50%;background:rgba(255,255,255,.55)}
+.b.gold{box-shadow:inset -6px -8px 14px rgba(0,0,0,.2),0 0 30px #ffd23f}
+@keyframes in{from{transform:scale(0)}to{transform:scale(1)}}
+.pop{position:absolute;font:400 20px var(--font);pointer-events:none;animation:up .6s ease-out forwards}
+@keyframes up{to{transform:translateY(-40px);opacity:0}}
+#ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;background:rgba(10,12,22,.82);padding:24px}
+#ov[hidden]{display:none}
+h1{font:400 clamp(44px,15vw,72px)/.95 var(--font);color:var(--accent);margin:0;text-wrap:balance}
+#ov p{margin:0;color:var(--muted);max-width:28ch;line-height:1.4}
+#go{font:400 24px var(--font);background:var(--accent);color:#10131f;border:0;border-radius:16px;padding:14px 34px;cursor:pointer}
+#go:focus-visible{outline:3px solid var(--fg);outline-offset:3px}
+#go:active{transform:scale(.96)}
+@media (prefers-reduced-motion:reduce){.b,.pop{animation:none}}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@700&display=swap">
+
+<div class="hud">
+  <div><small>Score</small><b id="score">0</b></div>
+  <div><small>Combo</small><b id="combo">x1</b></div>
+  <div><small>Record</small><b id="best">0</b></div>
+  <div><small>Temps</small><b id="time">30</b></div>
+</div>
+<div class="bar"><i id="bar"></i></div>
+<div id="field">
+  <div id="ov">
+    <h1 id="title">Pop Rush</h1>
+    <p id="msg">Touche les bulles avant qu'elles disparaissent. Les dorées valent 5 points. Rate-en une et ton combo retombe.</p>
+    <button id="go" type="button">Jouer</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var field=document.getElementById('field'),ov=document.getElementById('ov'),
+      sc=document.getElementById('score'),cb=document.getElementById('combo'),
+      bs=document.getElementById('best'),tm=document.getElementById('time'),
+      bar=document.getElementById('bar'),title=document.getElementById('title'),
+      msg=document.getElementById('msg'),go=document.getElementById('go');
+  var DUR=30,score=0,combo=1,left=DUR,run=false,spawnT,tickT,best=0;
+  var colors=['#ff4f79','#3fe0c5','#6c8cff','#ff9b3f','#c06cff'];
+  try{best=+localStorage.getItem('poprush-best')||0}catch(e){}
+  bs.textContent=best;
+
+  function spawn(){
+    if(!run)return;
+    var gold=Math.random()<.12,size=gold?46:(40+Math.random()*34),
+        w=field.clientWidth,h=field.clientHeight,
+        b=document.createElement('button');
+    b.type='button';b.className='b'+(gold?' gold':'');
+    b.setAttribute('aria-label','bulle');
+    b.style.cssText='width:'+size+'px;height:'+size+'px;left:'+Math.random()*(w-size)+'px;top:'+Math.random()*(h-size)+'px;background:'+(gold?'#ffd23f':colors[Math.random()*colors.length|0])+';color:'+(gold?'#ffd23f':'#fff')+'33';
+    var life=Math.max(650,1500-(DUR-left)*22);
+    var t=setTimeout(function(){if(b.parentNode){b.remove();if(run){combo=1;cb.textContent='x1'}}},life);
+    b.addEventListener('pointerdown',function(e){
+      e.preventDefault();if(!run)return;
+      clearTimeout(t);
+      var pts=(gold?5:1)*combo;
+      score+=pts;combo=Math.min(combo+1,9);
+      sc.textContent=score;cb.textContent='x'+combo;
+      var p=document.createElement('div');p.className='pop';p.textContent='+'+pts;
+      p.style.left=b.offsetLeft+'px';p.style.top=b.offsetTop+'px';p.style.color=gold?'#ffd23f':'#fff';
+      field.appendChild(p);setTimeout(function(){p.remove()},600);
+      b.remove();
+      if(navigator.vibrate){try{navigator.vibrate(12)}catch(x){}}
+    });
+    field.appendChild(b);
+    spawnT=setTimeout(spawn,Math.max(260,620-(DUR-left)*11));
+  }
+  function tick(){
+    left--;tm.textContent=left;bar.style.transform='scaleX('+left/DUR+')';
+    if(left<=0)end();else tickT=setTimeout(tick,1000);
+  }
+  function start(){
+    score=0;combo=1;left=DUR;run=true;
+    sc.textContent=0;cb.textContent='x1';tm.textContent=DUR;bar.style.transform='scaleX(1)';
+    ov.hidden=true;
+    Array.prototype.forEach.call(field.querySelectorAll('.b,.pop'),function(n){n.remove()});
+    spawn();tickT=setTimeout(tick,1000);
+  }
+  function end(){
+    run=false;clearTimeout(spawnT);clearTimeout(tickT);
+    Array.prototype.forEach.call(field.querySelectorAll('.b'),function(n){n.remove()});
+    var rec=score>best;
+    if(rec){best=score;bs.textContent=best;try{localStorage.setItem('poprush-best',best)}catch(e){}}
+    title.textContent=score+' pts';
+    msg.textContent=rec?'Nouveau record ! Montre ça à Christophe.':'Record à battre : '+best+'. Christophe fait mieux ?';
+    go.textContent='Rejouer';ov.hidden=false;
+  }
+  go.addEventListener('click',start);
+})();
+</script>
